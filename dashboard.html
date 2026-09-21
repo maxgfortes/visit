@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visite Águas de Lindóia — Hotéis, gastronomia, experiências e eventos</title>
+<meta name="description" content="O guia digital de Águas de Lindóia (SP): hotéis, pousadas, restaurantes, bares, lojas, atrações, roteiros e a agenda de eventos da cidade.">
+<link rel="canonical" href="https://visiteaguasdelindoia.com.br/">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Visite Águas de Lindóia">
+<meta property="og:description" content="Descubra uma cidade para viver, experimentar e guardar na memória.">
+<meta property="og:locale" content="pt_BR">
+<meta name="theme-color" content="#000066">
+<link rel="stylesheet" href="./src/style/dashboard.css">
+</head>
+<body>
+
+<div class="navtop">
+  <div class="logo"><img src="./src/img/logo.png" alt="Visite Lindoia" class="logo-img"></div>
+  <div class="nav-user" id="navUser">
+    <span class="nav-user-email" id="navUserEmail"></span>
+    <button class="logout-btn" id="logoutBtn">Sair</button>
+  </div>
+</div>
+
+<div class="login-page" id="loginPage">
+  <div class="login-overlay"></div>
+  <div class="login-form">
+    <div class="login-title">Fazer login</div>
+    <form id="loginForm">
+      <div class="inputs-area">
+        <input id="inputEmail" type="email" class="login-input" placeholder="email" required>
+        <input id="inputPassword" type="password" class="login-input" placeholder="senha" required>
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <div class="login-btn-area">
+        <button type="submit" class="login-btn">Fazer Login</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="dashboard-page" id="dashboardPage">
+  <div class="side-nav">
+    <button class="side-nav-btn" data-view="criar">Criar</button>
+    <button class="side-nav-btn" data-view="eventos">Eventos</button>
+    <button class="side-nav-btn" data-view="hoteis">Hoteis</button>
+    <button class="side-nav-btn" data-view="pousadas">Pousadas</button>
+    <button class="side-nav-btn" data-view="restaurantes">Gastronomia</button>
+    <button class="side-nav-btn" data-view="lojas">Lojas</button>
+  </div>
+  <div class="dashboard" id="dashboardArea"></div>
+</div>
+
+<script type="module" src="./src/js/dashboard.js"></script>
+</body>
+</html>
