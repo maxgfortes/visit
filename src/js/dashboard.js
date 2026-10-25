@@ -126,6 +126,8 @@ const collectionsConfig = {
 };
 
 let unsubscribeCurrentList = null;
+// Dados dos itens da lista aberta, usados para preencher o formulário de edição.
+const currentItems = new Map();
 
 function stopListening() {
   if (unsubscribeCurrentList) {
@@ -170,21 +172,66 @@ function renderCreateHub() {
   });
 }
 
-function renderFieldHTML(field) {
+function renderFieldHTML(field, value) {
   const requiredAttr = field.required ? 'required' : '';
   const placeholderAttr = field.placeholder ? `placeholder="${field.placeholder}"` : '';
+  const hasValue = value !== undefined && value !== null && value !== '';
 
   if (field.type === 'textarea') {
-    return `<label class="field"><span>${field.label}</span><textarea name="${field.key}" ${requiredAttr} ${placeholderAttr} rows="4"></textarea></label>`;
+    return `<label class="field"><span>${field.label}</span><textarea name="${field.key}" ${requiredAttr} ${placeholderAttr} rows="4">${hasValue ? escapeHTML(value) : ''}</textarea></label>`;
   }
   if (field.type === 'select') {
-    const optionsHTML = field.options.map(option => `<option value="${option}">${option}</option>`).join('');
+    // Mantém valores antigos que não estão mais na lista de opções.
+    const options = hasValue && !field.options.includes(value) ? [value, ...field.options] : field.options;
+    const optionsHTML = options.map(option => `<option value="${escapeHTML(option)}" ${option === value ? 'selected' : ''}>${escapeHTML(option)}</option>`).join('');
     return `<label class="field"><span>${field.label}</span><select name="${field.key}" ${requiredAttr}>${optionsHTML}</select></label>`;
   }
   if (field.type === 'checkbox') {
-    return `<label class="field field-checkbox"><input type="checkbox" name="${field.key}"><span>${field.label}</span></label>`;
+    return `<label class="field field-checkbox"><input type="checkbox" name="${field.key}" ${value ? 'checked' : ''}><span>${field.label}</span></label>`;
   }
-  return `<label class="field"><span>${field.label}</span><input type="${field.type}" name="${field.key}" ${requiredAttr} ${placeholderAttr}></label>`;
+  const valueAttr = hasValue ? `value="${escapeHTML(value)}"` : '';
+  return `<label class="field"><span>${field.label}</span><input type="${field.type}" name="${field.key}" ${requiredAttr} ${placeholderAttr} ${valueAttr}></label>`;
+}
+
+// Converte o valor salvo no Firestore para o formato que o campo do formulário espera.
+function toFormValue(field, raw) {
+  if (raw === undefined || raw === null) return '';
+  if (field.type === 'checkbox') return Boolean(raw);
+  if (field.type === 'date') {
+    const date = typeof raw.toDate === 'function' ? raw.toDate() : new Date(raw);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+  if (Array.isArray(raw)) return raw.join(', ');
+  return raw;
+}
+
+function collectFormData(form, cfg) {
+  const formData = new FormData(form);
+  const data = {};
+
+  cfg.fields.forEach(field => {
+    if (field.type === 'checkbox') {
+      data[field.key] = form.elements[field.key].checked;
+      return;
+    }
+    if (field.type === 'date') {
+      const raw = String(formData.get(field.key) || '');
+      // Sempre grava como Timestamp (Date nativo), nunca como texto solto,
+      // para permitir ordenar/comparar datas de forma confiável no Firestore.
+      data[field.key] = raw ? new Date(`${raw}T00:00:00`) : null;
+      return;
+    }
+    if (field.key === 'tags' || field.key === 'servicos') {
+      const raw = String(formData.get(field.key) || '');
+      data[field.key] = raw.split(',').map(v => v.trim()).filter(Boolean);
+      return;
+    }
+    data[field.key] = formData.get(field.key) || '';
+  });
+
+  return data;
 }
 
 function renderCreateForm(typeKey) {
@@ -209,28 +256,7 @@ async function submitNewItem(typeKey, cfg) {
   const submitButton = form.querySelector('.btn-primary');
   errorBox.textContent = '';
 
-  const formData = new FormData(form);
-  const data = { status: 'ativo', createdAt: serverTimestamp() };
-
-  cfg.fields.forEach(field => {
-    if (field.type === 'checkbox') {
-      data[field.key] = form.elements[field.key].checked;
-      return;
-    }
-    if (field.type === 'date') {
-      const raw = String(formData.get(field.key) || '');
-      // Sempre grava como Timestamp (Date nativo), nunca como texto solto,
-      // para permitir ordenar/comparar datas de forma confiável no Firestore.
-      data[field.key] = raw ? new Date(`${raw}T00:00:00`) : null;
-      return;
-    }
-    if (field.key === 'tags' || field.key === 'servicos') {
-      const raw = String(formData.get(field.key) || '');
-      data[field.key] = raw.split(',').map(v => v.trim()).filter(Boolean);
-      return;
-    }
-    data[field.key] = formData.get(field.key) || '';
-  });
+  const data = { ...collectFormData(form, cfg), status: 'ativo', createdAt: serverTimestamp() };
 
   submitButton.disabled = true;
   try {
@@ -269,6 +295,7 @@ function renderItemCard(docSnap, cfg) {
         ${item.descricao ? `<p class="item-card-desc">${escapeHTML(item.descricao)}</p>` : ''}
       </div>
       <div class="item-card-actions">
+        <button class="btn-edit" data-action="edit">Editar</button>
         <button class="btn-suspend" data-action="toggle-status">${status === 'ativo' ? 'Suspender' : 'Ativar'}</button>
         <button class="btn-delete" data-action="delete">Apagar</button>
       </div>
@@ -290,6 +317,8 @@ function renderListView(view) {
   const itemsQuery = query(collection(db, cfg.collectionName), orderBy('createdAt', 'desc'));
 
   unsubscribeCurrentList = onSnapshot(itemsQuery, snapshot => {
+    currentItems.clear();
+    snapshot.docs.forEach(docSnap => currentItems.set(docSnap.id, docSnap.data()));
     if (snapshot.empty) {
       itemList.innerHTML = '<p class="empty-state">Nenhum item cadastrado ainda.</p>';
       return;
@@ -309,6 +338,13 @@ async function handleListClick(event) {
 
   const card = event.target.closest('.item-card');
   const docRef = doc(db, card.dataset.collection, card.dataset.id);
+
+  if (actionButton.dataset.action === 'edit') {
+    const cfg = Object.values(collectionsConfig).find(c => c.collectionName === card.dataset.collection);
+    const item = currentItems.get(card.dataset.id);
+    if (cfg && item) openEditModal(docRef, cfg, item);
+    return;
+  }
 
   if (actionButton.dataset.action === 'toggle-status') {
     const willActivate = actionButton.textContent.trim() === 'Ativar';
@@ -332,6 +368,66 @@ async function handleListClick(event) {
       actionButton.disabled = false;
     }
   }
+}
+
+function closeEditModal() {
+  const modal = document.getElementById('editModal');
+  if (modal) modal.remove();
+  document.removeEventListener('keydown', handleEditModalKeydown);
+}
+
+function handleEditModalKeydown(event) {
+  if (event.key === 'Escape') closeEditModal();
+}
+
+function openEditModal(docRef, cfg, item) {
+  closeEditModal();
+  // O modal fica fora da lista para não ser apagado quando o onSnapshot re-renderiza os cards.
+  const modal = document.createElement('div');
+  modal.id = 'editModal';
+  modal.className = 'edit-modal';
+  modal.innerHTML = `
+    <div class="edit-modal-box" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+      <div class="edit-modal-header">
+        <h2 id="editModalTitle">Editar ${escapeHTML(item[cfg.titleField] || cfg.label)}</h2>
+        <button type="button" class="edit-modal-close" data-close aria-label="Fechar">&times;</button>
+      </div>
+      <form class="item-form" id="editForm">
+        ${cfg.fields.map(field => renderFieldHTML(field, toFormValue(field, item[field.key]))).join('')}
+        <div class="form-error" id="editFormError"></div>
+        <div class="edit-modal-actions">
+          <button type="submit" class="btn-primary">Salvar alterações</button>
+          <button type="button" class="btn-suspend" data-close>Cancelar</button>
+        </div>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.addEventListener('keydown', handleEditModalKeydown);
+
+  modal.addEventListener('click', event => {
+    if (event.target === modal || event.target.closest('[data-close]')) closeEditModal();
+  });
+
+  const form = modal.querySelector('#editForm');
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const errorBox = modal.querySelector('#editFormError');
+    const submitButton = form.querySelector('.btn-primary');
+    errorBox.textContent = '';
+    submitButton.disabled = true;
+    try {
+      await updateDoc(docRef, { ...collectFormData(form, cfg), updatedAt: serverTimestamp() });
+      closeEditModal();
+      showToast('Alterações salvas.');
+    } catch (err) {
+      console.error(err);
+      errorBox.textContent = 'Não foi possível salvar. Verifique sua conexão e tente novamente.';
+      submitButton.disabled = false;
+    }
+  });
+
+  form.querySelector('input, textarea, select')?.focus();
 }
 
 let toastTimeout = null;
@@ -371,6 +467,7 @@ loginForm.addEventListener('submit', async event => {
 });
 
 logoutBtn.addEventListener('click', () => {
+  closeEditModal();
   stopListening();
   signOut(auth);
 });

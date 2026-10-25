@@ -545,6 +545,7 @@ textarea {
     flex-shrink: 0;
 }
 
+.btn-edit,
 .btn-suspend,
 .btn-delete {
     padding: 8px 16px;
@@ -565,6 +566,15 @@ textarea {
 
 .btn-suspend:hover {
     background: var(--ink-700);
+}
+
+.btn-edit {
+    background: var(--gold-dim);
+    color: var(--gold);
+}
+
+.btn-edit:hover {
+    background: rgba(201, 167, 101, 0.26);
 }
 
 .btn-delete {
@@ -597,6 +607,67 @@ textarea {
 .dashboard-toast.is-visible {
     opacity: 1;
     transform: translate(-50%, 0);
+}
+
+.edit-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 48px 16px;
+    background: rgba(7, 11, 20, 0.72);
+    overflow-y: auto;
+}
+
+.edit-modal-box {
+    width: 100%;
+    max-width: 600px;
+    padding: 28px;
+    background: var(--ink-900);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-panel);
+}
+
+.edit-modal-box .item-form {
+    max-width: none;
+}
+
+.edit-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+}
+
+.edit-modal-header h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 500;
+    color: var(--paper);
+}
+
+.edit-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.edit-modal-close:hover {
+    color: var(--paper);
+}
+
+.edit-modal-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 @media (max-width: 760px) {
